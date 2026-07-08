@@ -123,3 +123,23 @@ export interface RentEstimate {
   zoneBreakdown: { zoneId: string; name: string; weight: number; monthly: number }[];
   note: string;
 }
+
+// ---------- Retirement funding ----------
+export type AllocationId = 'conservative' | 'balanced' | 'growth' | 'aggressive' | 'custom';
+export type HomeCountry = 'AU' | 'CA' | 'US' | 'other';
+
+export interface FundingPlan {
+  birthYear1: number;
+  birthYear2: number;              // used when household = 2
+  retirementYear: number;          // when drawdown starts / contributions stop
+  horizonAge: number;              // plan until the younger person reaches this age
+  currentSavings: number;          // investable portfolio today, display currency
+  monthlyContribution: number;     // saved per month until retirement
+  allocationId: AllocationId;
+  customAlloc: { stocks: number; bonds: number; cash: number }; // % — used when allocationId = 'custom'
+  homeCountry: HomeCountry;        // determines the government pension rules
+  govPensionOverride: number | null; // annual household amount in today's display $; null = auto rules
+  otherPensionAnnual: number;      // defined-benefit/annuity/super income streams, today's $ per year
+  legacyTarget: number;            // today's display $ to have left at the horizon (0 = spend to zero)
+  successTarget: number;           // desired Monte Carlo success %, e.g. 85
+}

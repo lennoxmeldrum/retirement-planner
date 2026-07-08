@@ -50,13 +50,10 @@ research features locally.
 
 ## Deploying to Cloud Run
 
-Pushes to `main` trigger `.github/workflows/deploy.yml`, which builds the Docker
-image (Vite build served by nginx on port 8080) and deploys it to Cloud Run.
-
-Required repo configuration:
-- **Secret** `GCP_SA_KEY` — service-account JSON with Cloud Run + Artifact Registry access
-- **Variable** `GCP_PROJECT_ID` — the GCP project id
-- **Variable** `GCP_REGION` — optional, defaults to `us-west1`
+The repo is connected directly to Cloud Run (Cloud Run → "Set up continuous
+deployment"), so every push to `main` triggers a Cloud Build that builds the
+`Dockerfile` (Vite build served by nginx on port 8080) and rolls out a new
+revision. No GitHub Actions workflow is needed.
 
 On the Cloud Run service, set `GEMINI_API_KEY` (or generic `API_KEY`) to enable the
 research features — it's injected at container start via `runtime-config.js`, no

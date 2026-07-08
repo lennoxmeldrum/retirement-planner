@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { BUILT_IN_REGIONS } from './data/regions';
 import { CATALOG } from './data/catalog';
-import { Assumptions, CostCategory, CustomItem, RegionData, Selections } from './types';
+import { Assumptions, BandId, CostCategory, CustomItem, FundingPlan, RegionData, Selections } from './types';
 import { computeBreakdown, seedFromBand } from './lib/costEngine';
 import { BBox, estimateRent } from './lib/geo';
+import { convert } from './data/currencies';
 import {
   loadAssumptions, saveAssumptions, loadCustomRegions, saveCustomRegions,
   loadCustomItems, saveCustomItems, loadSelectionsMap, saveSelectionsMap,
+  loadFundingPlan, saveFundingPlan,
 } from './lib/storage';
+import FundingPanel, { BandSpend } from './components/FundingPanel';
 import MapPanel from './components/MapPanel';
 import RentPanel from './components/RentPanel';
 import CostBuilder from './components/CostBuilder';
@@ -41,11 +44,14 @@ export default function App() {
   const [activeRegionId, setActiveRegionId] = useState<string>(BUILT_IN_REGIONS[0].id);
   const [view, setView] = useState<'planner' | 'settings'>('planner');
   const [bounds, setBounds] = useState<BBox | null>(null);
+  const [fundingPlan, setFundingPlan] = useState<FundingPlan>(loadFundingPlan);
+  const [fundingOpen, setFundingOpen] = useState(false);
 
   useEffect(() => saveAssumptions(assumptions), [assumptions]);
   useEffect(() => saveCustomRegions(customRegions), [customRegions]);
   useEffect(() => saveCustomItems(customItems), [customItems]);
   useEffect(() => saveSelectionsMap(selectionsMap), [selectionsMap]);
+  useEffect(() => saveFundingPlan(fundingPlan), [fundingPlan]);
 
   const regions = useMemo(() => [...BUILT_IN_REGIONS, ...customRegions], [customRegions]);
   const region = regions.find((r) => r.id === activeRegionId) ?? regions[0];
@@ -86,6 +92,32 @@ export default function App() {
   const breakdown = useMemo(
     () => computeBreakdown(region, catalog, customItems, sel, estimate.monthlyLocal),
     [region, catalog, customItems, sel, estimate.monthlyLocal]
+  );
+
+  const toDisplay = (local: number) =>
+    convert(local, region.localCurrency, sel.displayCurrency, assumptions.usdPerUnit);
+  const annualSpendBase = toDisplay(breakdown.totalLocal) * 12;
+
+  const BAND_LABELS: Record<BandId, string> = {
+    essential: 'Essential', comfortable: 'Comfortable', premium: 'Premium', luxury: 'Luxury',
+  };
+  const bandSpends: BandSpend[] = useMemo(
+    () =>
+      (Object.keys(BAND_LABELS) as BandId[]).map((band) => {
+        const seeded = seedFromBand(region, catalog, customItems, band);
+        const bd = computeBreakdown(
+          region, catalog, customItems,
+          { ...sel, band, choices: seeded.choices, quantities: seeded.quantities },
+          estimate.monthlyLocal
+        );
+        return {
+          band, label: BAND_LABELS[band],
+          annualSpendBase:
+            convert(bd.totalLocal, region.localCurrency, sel.displayCurrency, assumptions.usdPerUnit) * 12,
+        };
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [region, catalog, customItems, sel.household, sel.includeRent, sel.displayCurrency, estimate.monthlyLocal, assumptions]
   );
 
   return (
@@ -145,14 +177,29 @@ export default function App() {
               />
             </section>
           </main>
-          <SummaryBar
-            region={region}
-            sel={sel}
-            onSelChange={setSel}
-            breakdown={breakdown}
-            estimate={estimate}
-            assumptions={assumptions}
-          />
+          <footer className="dock">
+            {fundingOpen && (
+              <FundingPanel
+                region={region}
+                sel={sel}
+                plan={fundingPlan}
+                onPlanChange={setFundingPlan}
+                assumptions={assumptions}
+                annualSpendBase={annualSpendBase}
+                bandSpends={bandSpends}
+              />
+            )}
+            <SummaryBar
+              region={region}
+              sel={sel}
+              onSelChange={setSel}
+              breakdown={breakdown}
+              estimate={estimate}
+              assumptions={assumptions}
+              fundingOpen={fundingOpen}
+              onToggleFunding={() => setFundingOpen(!fundingOpen)}
+            />
+          </footer>
         </>
       ) : (
         <main className="settings-main">
