@@ -10,9 +10,11 @@ interface Props {
   breakdown: CostBreakdown;
   estimate: RentEstimate;
   assumptions: Assumptions;
+  fundingOpen: boolean;
+  onToggleFunding: () => void;
 }
 
-export default function SummaryBar({ region, sel, onSelChange, breakdown, estimate, assumptions }: Props) {
+export default function SummaryBar({ region, sel, onSelChange, breakdown, estimate, assumptions, fundingOpen, onToggleFunding }: Props) {
   const cur = region.localCurrency;
   const cpi = assumptions.cpiPct[region.id] ?? 2.5;
   const years = sel.year - assumptions.baseYear;
@@ -45,6 +47,9 @@ export default function SummaryBar({ region, sel, onSelChange, breakdown, estima
         </div>
       </div>
       <div className="summary-controls">
+        <button className={`funding-toggle ${fundingOpen ? 'open' : ''}`} onClick={onToggleFunding}>
+          💰 Can I afford this? {fundingOpen ? '▾' : '▴'}
+        </button>
         <label className="year-slider">
           <span>Year: <strong>{sel.year}</strong>{years > 0 ? ` (+${years})` : ''}</span>
           <input
