@@ -30,6 +30,11 @@ totals. Built as a static Vite + React app, deployed to Google Cloud Run.
 - **Year slider** — projects costs to any year through 2051 using per-region CPI
   assumptions (editable). FX is held constant and editable.
 - **Currencies** — totals in US$, CA$ or A$.
+- **Funding & Monte Carlo** — the "Can I afford this?" panel simulates 1,000
+  market futures against your portfolio, contributions, allocation, government
+  pensions (means-tested Australian Age Pension built in), other income streams,
+  a legacy target, and an optional Australian property (postcode-based growth
+  assumption; sale adds 80% of gross value to the portfolio in your chosen year).
 - **Settings** — add a *new region anywhere in the world* via Gemini research with
   Google Search grounding (zones, polygons, full price map), refresh prices for
   existing regions, discover cost inputs the planner doesn't cover yet, and

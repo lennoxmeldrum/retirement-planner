@@ -142,4 +142,9 @@ export interface FundingPlan {
   otherPensionAnnual: number;      // defined-benefit/annuity/super income streams, today's $ per year
   legacyTarget: number;            // today's display $ to have left at the horizon (0 = spend to zero)
   successTarget: number;           // desired Monte Carlo success %, e.g. 85
+  // Australian property to be sold into the portfolio (0 value = none)
+  propertyValueAUD: number;        // today's value, A$, assumed mortgage-free
+  propertyPostcode: string;        // drives the growth assumption
+  propertySaleYear: number | null; // null = keep it (never sold within the plan)
+  propertyGrowthOverridePct: number | null; // null = auto from postcode
 }

@@ -188,3 +188,8 @@ select, input[type='number'], input[type='text'], input[type='password'], input:
 @media (max-width: 900px) {
   .funding-panel { grid-template-columns: 1fr; max-height: 74vh; }
 }
+
+/* Property block */
+.prop-block { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; }
+.prop-block h5 { margin: 0 0 8px; font-size: 0.8rem; }
+.prop-row { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 8px; }
