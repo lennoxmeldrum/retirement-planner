@@ -15,6 +15,10 @@ export const DEFAULT_FUNDING_PLAN: FundingPlan = {
   otherPensionAnnual: 0,
   legacyTarget: 0,
   successTarget: 85,
+  propertyValueAUD: 0,
+  propertyPostcode: '',
+  propertySaleYear: 2030,
+  propertyGrowthOverridePct: null,
 };
 
 const KEYS = {

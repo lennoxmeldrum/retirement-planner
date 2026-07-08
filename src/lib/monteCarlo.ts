@@ -35,6 +35,9 @@ export interface SimConfig {
   indexCpiPct: number;        // indexing for pensions & the legacy target
   market: { mu: number; sigma: number };
   govPension: (year: number, balanceDisplay: number) => number;
+  // Net property-sale proceeds (display currency, already grown to the sale
+  // year and netted to 80%) landing in the portfolio in a given year.
+  propertySale?: { year: number; proceeds: number } | null;
   paths?: number;             // default 1000
   seed?: number;
 }
@@ -75,8 +78,12 @@ function runPath(
       const gov = cfg.govPension(year, Math.max(0, balance));
       balance -= Math.max(0, spend - gov - otherPension);
     }
+    if (cfg.propertySale && year === cfg.propertySale.year) balance += cfg.propertySale.proceeds;
     if (year === plan.retirementYear) atRetirement = balance;
-    if (balance <= 0) {
+    // While a property sale is still ahead, a negative balance is bridged
+    // (borrowing against the home) rather than counted as ruin.
+    const salePending = cfg.propertySale != null && year < cfg.propertySale.year;
+    if (balance <= 0 && !salePending) {
       balance = 0;
       if (depletion === null) depletion = year;
     }

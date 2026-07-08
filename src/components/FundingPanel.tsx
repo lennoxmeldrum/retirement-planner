@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Assumptions, BandId, FundingPlan, HomeCountry, RegionData, Selections } from '../types';
 import { ALLOCATIONS, PENSION_RULES, buildGovPension, planAllocation, portfolioModel } from '../data/pensions';
+import { SALE_NET_FRACTION, lookupPostcode } from '../data/property';
+import { convert } from '../data/currencies';
 import { simulate, successProbability, solveRequiredSavings, SimConfig } from '../lib/monteCarlo';
 import { fmtCompact, fmtMoney } from '../lib/format';
 import FanChart from './FanChart';
@@ -31,6 +33,19 @@ export default function FundingPanel({
   const rule = PENSION_RULES[plan.homeCountry];
   const [showAssumptions, setShowAssumptions] = useState(false);
 
+  const area = lookupPostcode(plan.propertyPostcode);
+  const propertyGrowthPct = plan.propertyGrowthOverridePct ?? area.growthPct;
+  const property = useMemo(() => {
+    if (plan.propertyValueAUD <= 0 || plan.propertySaleYear == null) return null;
+    const saleYear = Math.max(plan.propertySaleYear, startYear);
+    const grossAUD = plan.propertyValueAUD * Math.pow(1 + propertyGrowthPct / 100, saleYear - startYear);
+    const proceedsAUD = grossAUD * SALE_NET_FRACTION;
+    return {
+      saleYear, grossAUD, proceedsAUD,
+      proceeds: convert(proceedsAUD, 'AUD', cur, assumptions.usdPerUnit),
+    };
+  }, [plan.propertyValueAUD, plan.propertySaleYear, propertyGrowthPct, startYear, cur, assumptions.usdPerUnit]);
+
   const cfg: SimConfig = useMemo(() => {
     const alloc = planAllocation(plan);
     return {
@@ -42,8 +57,9 @@ export default function FundingPanel({
       indexCpiPct: INDEX_CPI,
       market: portfolioModel(alloc.stocks, alloc.bonds, alloc.cash),
       govPension: buildGovPension(plan, sel.household, assumptions.usdPerUnit, cur, INDEX_CPI, startYear),
+      propertySale: property ? { year: property.saleYear, proceeds: property.proceeds } : null,
     };
-  }, [plan, sel.household, annualSpendBase, assumptions, region.id, cur, startYear]);
+  }, [plan, sel.household, annualSpendBase, assumptions, region.id, cur, startYear, property]);
 
   const sim = useMemo(() => simulate(cfg), [cfg]);
 
@@ -126,6 +142,54 @@ export default function FundingPanel({
           <div className="fine-print">
             Modelled at {(cfg.market.mu * 100).toFixed(1)}% expected nominal return,
             {' '}{(cfg.market.sigma * 100).toFixed(1)}% volatility. Shares ≈ broad index ETFs.
+          </div>
+
+          <div className="prop-block">
+            <h5>🏡 Australian property (mortgage-free)</h5>
+            <label>Value today (A$, 0 = none)
+              <input type="number" min={0} step={25000} value={plan.propertyValueAUD}
+                onChange={(e) => set({ propertyValueAUD: num(e.target.value) })} />
+            </label>
+            {plan.propertyValueAUD > 0 && (
+              <>
+                <div className="prop-row">
+                  <label>Postcode
+                    <input type="text" inputMode="numeric" maxLength={4} placeholder="e.g. 4217"
+                      value={plan.propertyPostcode}
+                      onChange={(e) => set({ propertyPostcode: e.target.value.replace(/\D/g, ''), propertyGrowthOverridePct: null })} />
+                  </label>
+                  <label>Growth %/yr
+                    <input type="number" step={0.1} min={-5} max={15} value={propertyGrowthPct}
+                      onChange={(e) => set({ propertyGrowthOverridePct: num(e.target.value, propertyGrowthPct) })} />
+                  </label>
+                  <label>Sell in
+                    <input type="number" min={startYear} max={startYear + 40} disabled={plan.propertySaleYear == null}
+                      value={plan.propertySaleYear ?? startYear}
+                      onChange={(e) => set({ propertySaleYear: num(e.target.value, startYear) })} />
+                  </label>
+                </div>
+                <label className="toggle inline">
+                  <input type="checkbox" checked={plan.propertySaleYear != null}
+                    onChange={(e) => set({ propertySaleYear: e.target.checked ? Math.max(startYear + 4, plan.retirementYear) : null })} />
+                  <span>sell it and add the proceeds to the portfolio</span>
+                </label>
+                <div className="fine-print">
+                  {plan.propertyPostcode.length >= 3
+                    ? `${plan.propertyPostcode} → ${area.label}: ${area.growthPct}%/yr assumed`
+                    : 'Enter a postcode to pick up the local growth assumption'}
+                  {plan.propertyGrowthOverridePct != null && ' (overridden)'}
+                  {property && (
+                    <>
+                      {' '}· Sale in {property.saleYear}: ≈ A${Math.round(property.grossAUD / 1000)}k gross →{' '}
+                      {fmtCompact(property.proceeds, cur)} added to the portfolio
+                      ({Math.round(SALE_NET_FRACTION * 100)}% after agent fees, taxes and costs)
+                    </>
+                  )}
+                  {plan.propertySaleYear == null &&
+                    ' · Kept indefinitely: its value stays outside the portfolio, but the Age Pension homeowner test still applies.'}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -215,7 +279,7 @@ export default function FundingPanel({
           </div>
         </div>
 
-        <FanChart sim={sim} currency={cur} retirementYear={plan.retirementYear} />
+        <FanChart sim={sim} currency={cur} retirementYear={plan.retirementYear} saleYear={property?.saleYear} />
 
         <div className="bandfit">
           <h4>Which lifestyle can your money sustain here?</h4>
@@ -255,7 +319,10 @@ export default function FundingPanel({
             (shares 7.2%±15.5%, bonds 4.3%±6.5%, cash 3.0%, shares/bonds correlation 0.15). Spending grows at the
             region's CPI ({cfg.spendCpiPct}%/yr); pensions and the legacy target index at {INDEX_CPI}%/yr; FX held
             constant. Australian Age Pension is re-means-tested against the portfolio every simulated year
-            (non-homeowner assets test). Contributions stop and drawdown starts at retirement. "Success" = never
+            (homeowner free areas while you still own the Australian home — its value is exempt — switching to
+            non-homeowner free areas once sold). Property grows deterministically at the postcode-area assumption;
+            the sale adds 80% of gross value (agent fees, CGT and costs) in the sale year, and a pending sale can
+            bridge a temporarily negative portfolio. Contributions stop and drawdown starts at retirement. "Success" = never
             running dry and finishing above the legacy target. Benchmark 3.9% is Morningstar's 2026 safe starting
             withdrawal rate (90% success, 30 years). Educational model — not financial advice.
           </div>

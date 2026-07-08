@@ -7,6 +7,7 @@ interface Props {
   sim: SimOutput;
   currency: DisplayCurrency;
   retirementYear: number;
+  saleYear?: number | null;
 }
 
 const W = 720, H = 240, M = { top: 18, right: 86, bottom: 26, left: 52 };
@@ -17,7 +18,7 @@ function niceStep(raw: number): number {
   return (unit <= 1 ? 1 : unit <= 2 ? 2 : unit <= 5 ? 5 : 10) * pow;
 }
 
-export default function FanChart({ sim, currency, retirementYear }: Props) {
+export default function FanChart({ sim, currency, retirementYear, saleYear }: Props) {
   const [hover, setHover] = useState<number | null>(null);
   const { years, p10, p50, p90 } = sim;
   const n = years.length;
@@ -25,7 +26,8 @@ export default function FanChart({ sim, currency, retirementYear }: Props) {
 
   const yMax = Math.max(...p90, 1) * 1.05;
   const x = (i: number) => M.left + (i / (n - 1)) * (W - M.left - M.right);
-  const y = (v: number) => M.top + (1 - v / yMax) * (H - M.top - M.bottom);
+  // Pre-sale balances can be bridged negative; the plot floors at zero.
+  const y = (v: number) => M.top + (1 - Math.max(0, v) / yMax) * (H - M.top - M.bottom);
 
   const line = (arr: number[]) => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('');
   const band =
@@ -38,6 +40,7 @@ export default function FanChart({ sim, currency, retirementYear }: Props) {
 
   const xTickEvery = Math.ceil(n / 8);
   const retIdx = years.indexOf(retirementYear);
+  const saleIdx = saleYear != null ? years.indexOf(saleYear) : -1;
   const depIdx = sim.medianDepletionYear ? years.indexOf(sim.medianDepletionYear) : -1;
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -68,6 +71,12 @@ export default function FanChart({ sim, currency, retirementYear }: Props) {
           <g>
             <line x1={x(retIdx)} x2={x(retIdx)} y1={M.top} y2={H - M.bottom} stroke="#c3c2b7" strokeWidth={1} strokeDasharray="3 4" />
             <text x={x(retIdx) + 4} y={M.top + 8} className="axis-text">retire</text>
+          </g>
+        )}
+        {saleIdx >= 0 && (
+          <g>
+            <line x1={x(saleIdx)} x2={x(saleIdx)} y1={M.top} y2={H - M.bottom} stroke="#c3c2b7" strokeWidth={1} strokeDasharray="3 4" />
+            <text x={x(saleIdx) + 4} y={M.top + 8} className="axis-text">sell home</text>
           </g>
         )}
         {depIdx >= 0 && (

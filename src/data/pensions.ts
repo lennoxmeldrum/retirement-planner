@@ -50,7 +50,8 @@ interface PensionRuleAU {
   kind: 'means-tested-au';
   eligibleAge: number;
   fullSingle: number; fullCouple: number;   // AUD per year incl. supplements
-  thresholdSingle: number; thresholdCouple: number; // non-homeowner assets-test free areas, AUD
+  thresholdSingle: number; thresholdCouple: number; // NON-homeowner assets-test free areas, AUD
+  thresholdSingleHomeowner: number; thresholdCoupleHomeowner: number; // while still owning the home
   taperPerDollar: number;                   // annual pension lost per $1 of assets over the threshold
   currency: CurrencyCode;
 }
@@ -71,10 +72,12 @@ export const PENSION_RULES: Record<HomeCountry, PensionRule | null> = {
     fullSingle: 31220, fullCouple: 47070,
     // July-2026 assets-test free areas, NON-homeowner (this planner assumes renting)
     thresholdSingle: 600000, thresholdCouple: 766000,
+    // ...and the lower homeowner free areas that apply while an Australian home is still owned
+    thresholdSingleHomeowner: 333000, thresholdCoupleHomeowner: 499000,
     // $3.00/fortnight per $1,000 of assets over the free area = 7.8%/yr
     taperPerDollar: 0.078,
     currency: 'AUD',
-    note: 'Means-tested against your portfolio each year (assets test, non-homeowner free areas, $3/fortnight per $1,000 taper). Payable overseas long-term, re-tested after 26 weeks abroad — supplements drop slightly, not modelled.',
+    note: 'Means-tested against your portfolio each year ($3/fortnight per $1,000 taper). While you still own an Australian home its value is exempt but the lower homeowner free areas apply; after selling, the proceeds are assessable under the higher non-homeowner free areas. Payable overseas long-term, re-tested after 26 weeks abroad — supplements drop slightly, not modelled.',
   },
   CA: {
     kind: 'flat',
@@ -143,7 +146,13 @@ export function buildGovPension(
     const inflator = idx(year);
     const couple = household === 2;
     const full = (couple ? rule.fullCouple * (n / 2) : rule.fullSingle) * inflator;
-    const threshold = (couple ? rule.thresholdCouple : rule.thresholdSingle) * inflator;
+    // Homeowner status: still owning the (exempt) Australian home lowers the free area.
+    const ownsHome =
+      plan.propertyValueAUD > 0 && (plan.propertySaleYear == null || year < plan.propertySaleYear);
+    const threshold =
+      (couple
+        ? ownsHome ? rule.thresholdCoupleHomeowner : rule.thresholdCouple
+        : ownsHome ? rule.thresholdSingleHomeowner : rule.thresholdSingle) * inflator;
     const balanceAUD = convert(balanceDisplay, displayCurrency, rule.currency, usdPerUnit);
     const excess = Math.max(0, balanceAUD - threshold);
     const pensionAUD = Math.max(0, full - excess * rule.taperPerDollar);
